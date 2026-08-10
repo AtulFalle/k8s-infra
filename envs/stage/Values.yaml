@@ -11,3 +11,13 @@ service:
 ingress:
   enabled: true
   host: demo-stage.local
+
+vault:
+  path: secret
+  role: vault-stage
+
+secrets:
+  enabled: true
+  vaultPath: stage/app
+  vaultRole: stage
+  serviceAccountName: vault-stage

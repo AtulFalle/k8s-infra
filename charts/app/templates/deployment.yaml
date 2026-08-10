@@ -1,3 +1,4 @@
+{{- $releaseName := .Release.Name }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -45,6 +46,9 @@ spec:
               containerPort: {{ .Values.service.targetPort }}
               protocol: TCP
           {{- with .Values.livenessProbe }}
+          envFrom:
+            - secretRef:
+                name: {{ $releaseName }}-secrets
           livenessProbe:
             {{- toYaml . | nindent 12 }}
           {{- end }}

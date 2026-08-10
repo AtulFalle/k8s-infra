@@ -11,3 +11,13 @@ service:
 ingress:
   enabled: true
   host: demo.prod
+
+vault:
+  path: secret
+  role: vault-prod
+
+secrets:
+  enabled: true
+  vaultPath: prod/app
+  vaultRole: prod
+  serviceAccountName: vault-prod
