@@ -1,0 +1,18 @@
+kind: Application   
+apiVersion: argoproj.io/v1alpha1
+metadata:
+  name: demo-app
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/AtulFalle/k8s-infra.git
+    targetRevision: HEAD
+    path: charts/app
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: dev
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
