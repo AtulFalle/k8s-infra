@@ -9,8 +9,9 @@ spec:
     repoURL: https://github.com/AtulFalle/k8s-infra.git
     targetRevision: HEAD
     path: charts/app
-    help:
-      ValuesFile: ../envs/prod/Values.yaml
+    helm:
+      valueFiles:
+      - ../envs/prod/Values.yaml
   destination:
     server: https://kubernetes.default.svc
     namespace: prod
