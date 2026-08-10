@@ -16,4 +16,4 @@ spec:
               service:
                 name: {{ .Release.Name }}
                 port:
-                  name: 80
+                  name: http
