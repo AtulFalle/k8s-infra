@@ -1,0 +1,95 @@
+name: todo
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - "workloads/todo/**"
+      - "charts/todo/**"
+      - "envs/todo/**"
+      - ".github/workflows/todo.yml"
+  workflow_dispatch:
+    inputs:
+      promote_to:
+        description: "Promote current Dev image tag to this environment"
+        type: choice
+        options:
+          - none
+          - stage
+          - prod
+        default: none
+
+permissions:
+  contents: write
+
+env:
+  IMAGE_NAME: atulfalle1815/todo
+
+jobs:
+  build-and-push:
+    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.promote_to == 'none')
+    runs-on: ubuntu-latest
+    outputs:
+      image_tag: ${{ steps.meta.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Image tag
+        id: meta
+        run: |
+          SHORT_SHA=$(echo "${GITHUB_SHA}" | cut -c1-7)
+          echo "tag=sha-${SHORT_SHA}" >> "$GITHUB_OUTPUT"
+          echo "Building ${IMAGE_NAME}:sha-${SHORT_SHA}"
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: workloads/todo
+          push: true
+          tags: |
+            ${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.tag }}
+            ${{ env.IMAGE_NAME }}:dev
+
+      - name: Bump Dev image tag in Git (Argo CD picks this up)
+        run: |
+          TAG="${{ steps.meta.outputs.tag }}"
+          FILE=envs/todo/dev/values.yaml
+          sed -i "s/^  tag: .*/  tag: \"${TAG}\"/" "$FILE"
+          sed -i "s/^  APP_VERSION: .*/  APP_VERSION: \"${TAG}\"/" "$FILE"
+          if git diff --quiet -- "$FILE"; then
+            echo "Dev values already at ${TAG}"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add "$FILE"
+          git commit -m "chore(todo): deploy ${TAG} to dev"
+          git push
+
+  promote:
+    if: github.event_name == 'workflow_dispatch' && inputs.promote_to != 'none'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Promote image tag
+        env:
+          TARGET: ${{ inputs.promote_to }}
+        run: |
+          set -euo pipefail
+          DEV_TAG=$(grep -E '^  tag:' envs/todo/dev/values.yaml | head -1 | awk '{print $2}' | tr -d '"')
+          echo "Promoting ${DEV_TAG} → ${TARGET}"
+          FILE="envs/todo/${TARGET}/values.yaml"
+          sed -i "s/^  tag: .*/  tag: \"${DEV_TAG}\"/" "$FILE"
+          sed -i "s/^  APP_VERSION: .*/  APP_VERSION: \"${DEV_TAG}\"/" "$FILE"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add "$FILE"
+          git commit -m "chore(todo): promote ${DEV_TAG} to ${TARGET}"
+          git push

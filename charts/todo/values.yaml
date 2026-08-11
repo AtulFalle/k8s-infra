@@ -1,0 +1,68 @@
+replicaCount: 1
+
+image:
+  # Override per env: Docker Hub atulfalle1815/todo
+  repository: atulfalle1815/todo
+  tag: "0.1.0"
+  pullPolicy: Always
+
+imagePullSecrets:
+  - name: dockerhub
+
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  name: vault-todo
+
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 3000
+
+ingress:
+  enabled: false
+  className: nginx
+  host: ""
+  path: /
+  pathType: Prefix
+  annotations: {}
+
+# Non-secret runtime config (Git-managed per env)
+config:
+  APP_ENV: dev
+  APP_VERSION: "0.1.0"
+
+# Secrets from Vault via External Secrets Operator
+secrets:
+  enabled: true
+  vaultServer: http://vault.vault.svc.cluster.local:8200
+  vaultMount: secret
+  vaultAuthMount: kubernetes
+  vaultPath: ""
+  vaultRole: ""
+  refreshInterval: 1m
+  keys:
+    - APP_BANNER
+    - DEMO_API_KEY
+
+persistence:
+  enabled: true
+  size: 1Gi
+  mountPath: /data
+
+resources: {}
+
+livenessProbe:
+  httpGet:
+    path: /healthz
+    port: http
+  initialDelaySeconds: 5
+  periodSeconds: 10
+
+readinessProbe:
+  httpGet:
+    path: /healthz
+    port: http
+  initialDelaySeconds: 3
+  periodSeconds: 5

@@ -1,0 +1,37 @@
+# Authentik Helm values for local Kind POC.
+# Secrets (secret_key, postgresql passwords) are injected at install time
+# from infrastructure/authentik/secrets/ — never commit those files.
+authentik:
+  error_reporting:
+    enabled: false
+
+postgresql:
+  enabled: true
+  auth:
+    username: authentik
+    database: authentik
+    # Avoid POSTGRES_PASSWORD + POSTGRES_PASSWORD_FILE clash (goauthentik/helm#449)
+    usePasswordFiles: false
+
+server:
+  replicas: 1
+  # Prefer raw Ingress in this directory so all platform UIs share one pattern.
+  ingress:
+    enabled: false
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+
+worker:
+  replicas: 1
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi

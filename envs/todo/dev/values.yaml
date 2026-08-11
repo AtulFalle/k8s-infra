@@ -1,0 +1,30 @@
+replicaCount: 1
+
+image:
+  repository: atulfalle1815/todo
+  tag: "0.1.0"
+  pullPolicy: Always
+
+imagePullSecrets:
+  - name: dockerhub
+
+serviceAccount:
+  name: vault-todo
+
+config:
+  APP_ENV: dev
+  APP_VERSION: "0.1.0"
+
+secrets:
+  enabled: true
+  vaultPath: dev/todo
+  vaultRole: todo-dev
+
+ingress:
+  enabled: true
+  className: nginx
+  host: todo-dev.local
+
+persistence:
+  enabled: true
+  size: 1Gi

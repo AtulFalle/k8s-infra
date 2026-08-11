@@ -3,18 +3,24 @@ replicaCount: 2
 image:
   repository: nginx
   tag: "1.27"
+  pullPolicy: IfNotPresent
 
 service:
+  type: ClusterIP
   port: 80
   targetPort: 80
 
 ingress:
   enabled: true
+  className: nginx
   host: demo-stage.local
+  annotations: {}
+  tls: []
 
-vault:
-  path: secret
-  role: vault-stage
+serviceAccount:
+  create: true
+  automount: true
+  name: vault-stage
 
 secrets:
   enabled: true

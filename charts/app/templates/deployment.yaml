@@ -45,10 +45,12 @@ spec:
             - name: http
               containerPort: {{ .Values.service.targetPort }}
               protocol: TCP
-          {{- with .Values.livenessProbe }}
+          {{- if .Values.secrets.enabled }}
           envFrom:
             - secretRef:
                 name: {{ $releaseName }}-secrets
+          {{- end }}
+          {{- with .Values.livenessProbe }}
           livenessProbe:
             {{- toYaml . | nindent 12 }}
           {{- end }}

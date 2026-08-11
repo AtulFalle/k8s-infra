@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>TODO POC</title>
+  <style>
+    :root { color-scheme: light; font-family: system-ui, sans-serif; }
+    body { max-width: 40rem; margin: 2rem auto; padding: 0 1rem; }
+    h1 { margin-bottom: 0.25rem; }
+    .meta { color: #555; margin-bottom: 0.5rem; font-size: 0.9rem; }
+    .banner {
+      background: #eef6ff;
+      border: 1px solid #c7ddf7;
+      padding: 0.75rem 1rem;
+      margin-bottom: 1rem;
+      border-radius: 6px;
+      font-size: 0.95rem;
+    }
+    .banner.missing { background: #fff4f0; border-color: #f0c2b0; }
+    .ok { color: #0a7a32; font-weight: 600; }
+    .bad { color: #a11; font-weight: 600; }
+    form { display: flex; gap: 0.5rem; margin-bottom: 1rem; }
+    input[type="text"] { flex: 1; padding: 0.5rem; }
+    button { padding: 0.5rem 0.75rem; cursor: pointer; }
+    li { display: flex; align-items: center; gap: 0.5rem; padding: 0.4rem 0; border-bottom: 1px solid #eee; }
+    li.done span { text-decoration: line-through; color: #888; }
+    .grow { flex: 1; }
+  </style>
+</head>
+<body>
+  <h1>TODO</h1>
+  <p class="meta" id="meta">loading…</p>
+  <div class="banner missing" id="banner">Checking Vault…</div>
+  <form id="form">
+    <input id="title" type="text" placeholder="New todo" required />
+    <button type="submit">Add</button>
+  </form>
+  <ul id="list"></ul>
+  <script>
+    const listEl = document.getElementById("list");
+    const metaEl = document.getElementById("meta");
+    const bannerEl = document.getElementById("banner");
+    const form = document.getElementById("form");
+    const titleInput = document.getElementById("title");
+
+    async function loadMeta() {
+      const meta = await fetch("/api/meta").then((r) => r.json());
+      const vaultOk = meta.vault && meta.vault.loaded;
+      metaEl.innerHTML =
+        `env: <strong>${meta.env}</strong> · version: ${meta.version} · vault: ` +
+        (vaultOk
+          ? `<span class="ok">connected</span> (key ${meta.vault.apiKeyFingerprint})`
+          : `<span class="bad">not loaded</span>`);
+      if (meta.banner) {
+        bannerEl.classList.remove("missing");
+        bannerEl.textContent = meta.banner;
+      } else {
+        bannerEl.classList.add("missing");
+        bannerEl.textContent = "Vault banner missing — ExternalSecret / Vault path not wired";
+      }
+    }
+
+    async function loadTodos() {
+      const todos = await fetch("/api/todos").then((r) => r.json());
+      listEl.innerHTML = "";
+      for (const t of todos) {
+        const li = document.createElement("li");
+        if (t.done) li.classList.add("done");
+        li.innerHTML = `
+          <input type="checkbox" ${t.done ? "checked" : ""} data-id="${t.id}" />
+          <span class="grow"></span>
+          <button type="button" data-del="${t.id}">Delete</button>
+        `;
+        li.querySelector("span").textContent = t.title;
+        listEl.appendChild(li);
+      }
+    }
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      await fetch("/api/todos", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: titleInput.value }),
+      });
+      titleInput.value = "";
+      await loadTodos();
+    });
+
+    listEl.addEventListener("change", async (e) => {
+      const id = e.target.getAttribute("data-id");
+      if (!id) return;
+      await fetch(`/api/todos/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ done: e.target.checked }),
+      });
+      await loadTodos();
+    });
+
+    listEl.addEventListener("click", async (e) => {
+      const id = e.target.getAttribute("data-del");
+      if (!id) return;
+      await fetch(`/api/todos/${id}`, { method: "DELETE" });
+      await loadTodos();
+    });
+
+    loadMeta();
+    loadTodos();
+  </script>
+</body>
+</html>

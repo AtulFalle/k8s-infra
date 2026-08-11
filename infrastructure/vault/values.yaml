@@ -1,0 +1,30 @@
+# HashiCorp Vault Helm values (dev mode for local Kind POC).
+# Production: disable dev mode, enable HA, TLS, auto-unseal, and audit devices.
+global:
+  enabled: true
+  tlsDisable: true
+
+server:
+  dev:
+    enabled: true
+  # Ingress is managed as a raw manifest under this directory for consistency
+  # with Authentik / Argo CD (one Ingress pattern for the platform).
+  ingress:
+    enabled: false
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+injector:
+  enabled: true
+  resources:
+    requests:
+      cpu: 20m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi

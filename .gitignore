@@ -1,0 +1,18 @@
+# Local secrets — never commit
+infrastructure/**/secrets/**
+!infrastructure/**/secrets/.gitkeep
+
+# Ad-hoc secret value files
+*.secret.yaml
+*.secrets.yaml
+
+# App local artifacts
+workloads/**/node_modules/
+workloads/**/data/
+*.db
+
+# OS / editor
+.DS_Store
+Thumbs.db
+*.swp
+*~

@@ -3,20 +3,28 @@ replicaCount: 1
 image:
   repository: nginx
   tag: "1.27"
+  pullPolicy: IfNotPresent
 
 service:
+  type: ClusterIP
   port: 80
   targetPort: 80
 
 ingress:
   enabled: true
+  className: nginx
   host: demo-dev.local
-vault:
-  path: secret
-  role: vault-dev
+  annotations: {}
+  tls: []
+
+serviceAccount:
+  create: true
+  automount: true
+  name: vault-dev
 
 secrets:
   enabled: true
   vaultPath: dev/app
   vaultRole: dev
+  # Must match serviceAccount.name (Vault Kubernetes auth binding)
   serviceAccountName: vault-dev

@@ -1,0 +1,14 @@
+services:
+  todo:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      APP_ENV: local
+      APP_VERSION: "0.1.0"
+      DB_PATH: /data/todo.db
+    volumes:
+      - todo-data:/data
+
+volumes:
+  todo-data:

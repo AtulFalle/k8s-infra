@@ -1,0 +1,29 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: todo-stage
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: todo
+    environment: stage
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io/cascade
+spec:
+  project: workloads
+  source:
+    repoURL: https://github.com/AtulFalle/k8s-infra.git
+    targetRevision: HEAD
+    path: charts/todo
+    helm:
+      releaseName: todo
+      valueFiles:
+        - ../../envs/todo/stage/values.yaml
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: todo-stage
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
