@@ -16,6 +16,8 @@ data:
         rewrite name exact argocd.local ingress-nginx-controller.ingress-nginx.svc.cluster.local
         rewrite name exact vault.local ingress-nginx-controller.ingress-nginx.svc.cluster.local
         rewrite name exact grafana.local ingress-nginx-controller.ingress-nginx.svc.cluster.local
+        rewrite name exact headlamp.local ingress-nginx-controller.ingress-nginx.svc.cluster.local
+        rewrite name exact workflows.local ingress-nginx-controller.ingress-nginx.svc.cluster.local
         rewrite name exact todo-dev.local ingress-nginx-controller.ingress-nginx.svc.cluster.local
         forward . /etc/resolv.conf
     }

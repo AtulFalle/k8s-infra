@@ -3,7 +3,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-TAG="${TAG:-0.1.0}"
+TAG="${TAG:-0.1.2}"
 IMAGE="atulfalle1815/todo:${TAG}"
 
 echo "==> Building ${IMAGE}"

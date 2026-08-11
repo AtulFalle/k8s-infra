@@ -1,0 +1,67 @@
+# Argo Workflows — multi-step scheduled jobs (exception path)
+crds:
+  install: true
+  keep: true
+
+createAggregateRoles: true
+
+workflow:
+  serviceAccount:
+    create: true
+    name: argo-workflow
+
+controller:
+  workflowNamespaces:
+    - argo
+    - todo-dev
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+server:
+  enabled: true
+  authModes:
+    - server
+    - client
+  secure: false
+  ingress:
+    enabled: true
+    ingressClassName: nginx
+    hosts:
+      - workflows.local
+    paths:
+      - /
+  sso:
+    enabled: true
+    issuer: http://authentik.local/application/o/workflows/
+    clientId:
+      name: argo-workflows-sso
+      key: client-id
+    clientSecret:
+      name: argo-workflows-sso
+      key: client-secret
+    redirectUrl: http://workflows.local/oauth2/callback
+    scopes:
+      - openid
+      - profile
+      - email
+      - groups
+    rbac:
+      enabled: true
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+executor:
+  resources:
+    requests:
+      cpu: 10m
+      memory: 32Mi

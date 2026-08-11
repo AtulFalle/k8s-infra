@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Finalize POC: CoreDNS, Authentik OIDC (Argo+Vault), Grafana.
+# Finalize POC: CoreDNS, Authentik OIDC, Grafana, Headlamp, Argo Workflows.
 # Does NOT helm-upgrade TODO while Argo owns it — bump envs/todo/*/values.yaml and sync Argo.
 set -euo pipefail
 
@@ -10,8 +10,25 @@ need_file() {
   [[ -f "$1" ]] || { echo "missing $1"; exit 1; }
 }
 
+ensure_oidc_client() {
+  local id_file=$1 secret_file=$2 id_prefix=$3
+  if [[ ! -f "${id_file}" ]]; then
+    echo "${id_prefix}-$(openssl rand -hex 4)" > "${id_file}"
+    echo "Generated ${id_file}"
+  fi
+  if [[ ! -f "${secret_file}" ]]; then
+    openssl rand -hex 32 > "${secret_file}"
+    echo "Generated ${secret_file}"
+  fi
+}
+
+mkdir -p "${AK_SECRETS}"
+ensure_oidc_client "${AK_SECRETS}/headlamp-client-id" "${AK_SECRETS}/headlamp-client-secret" "headlamp"
+ensure_oidc_client "${AK_SECRETS}/workflows-client-id" "${AK_SECRETS}/workflows-client-secret" "workflows"
+
 for f in bootstrap-email bootstrap-password argocd-client-id argocd-client-secret \
-         vault-client-id vault-client-secret secret-key postgres-password; do
+         vault-client-id vault-client-secret headlamp-client-id headlamp-client-secret \
+         workflows-client-id workflows-client-secret secret-key postgres-password; do
   need_file "${AK_SECRETS}/${f}"
 done
 
@@ -19,6 +36,10 @@ ARGOCD_CID="$(tr -d '\n\r' < "${AK_SECRETS}/argocd-client-id")"
 ARGOCD_CSEC="$(tr -d '\n\r' < "${AK_SECRETS}/argocd-client-secret")"
 VAULT_CID="$(tr -d '\n\r' < "${AK_SECRETS}/vault-client-id")"
 VAULT_CSEC="$(tr -d '\n\r' < "${AK_SECRETS}/vault-client-secret")"
+HEADLAMP_CID="$(tr -d '\n\r' < "${AK_SECRETS}/headlamp-client-id")"
+HEADLAMP_CSEC="$(tr -d '\n\r' < "${AK_SECRETS}/headlamp-client-secret")"
+WORKFLOWS_CID="$(tr -d '\n\r' < "${AK_SECRETS}/workflows-client-id")"
+WORKFLOWS_CSEC="$(tr -d '\n\r' < "${AK_SECRETS}/workflows-client-secret")"
 BOOT_EMAIL="$(tr -d '\n\r' < "${AK_SECRETS}/bootstrap-email")"
 BOOT_PASS="$(tr -d '\n\r' < "${AK_SECRETS}/bootstrap-password")"
 AK_KEY="$(tr -d '\n\r' < "${AK_SECRETS}/secret-key")"
@@ -38,6 +59,10 @@ kubectl -n authentik create secret generic authentik-oidc-clients \
   --from-literal=argocd-client-secret="${ARGOCD_CSEC}" \
   --from-literal=vault-client-id="${VAULT_CID}" \
   --from-literal=vault-client-secret="${VAULT_CSEC}" \
+  --from-literal=headlamp-client-id="${HEADLAMP_CID}" \
+  --from-literal=headlamp-client-secret="${HEADLAMP_CSEC}" \
+  --from-literal=workflows-client-id="${WORKFLOWS_CID}" \
+  --from-literal=workflows-client-secret="${WORKFLOWS_CSEC}" \
   --dry-run=client -o yaml | kubectl apply -f -
 
 echo "==> Authentik blueprints ConfigMap (normalize LF)"
@@ -73,7 +98,7 @@ kubectl exec -n authentik deploy/authentik-worker -- \
 kubectl exec -n authentik deploy/authentik-worker -- ak shell -c '
 from authentik.core.models import User, Group
 u = User.objects.filter(username="akadmin").first()
-for name in ["Argo CD Admins", "Argo CD Viewers", "Vault Admins"]:
+for name in ["Argo CD Admins", "Argo CD Viewers", "Vault Admins", "Platform Admins"]:
     g, _ = Group.objects.get_or_create(name=name)
     if u:
         g.users.add(u)
@@ -85,7 +110,11 @@ for i in $(seq 1 36); do
   if curl -sf -H 'Host: authentik.local' \
       http://127.0.0.1/application/o/argocd/.well-known/openid-configuration >/dev/null \
      && curl -sf -H 'Host: authentik.local' \
-      http://127.0.0.1/application/o/vault/.well-known/openid-configuration >/dev/null; then
+      http://127.0.0.1/application/o/vault/.well-known/openid-configuration >/dev/null \
+     && curl -sf -H 'Host: authentik.local' \
+      http://127.0.0.1/application/o/headlamp/.well-known/openid-configuration >/dev/null \
+     && curl -sf -H 'Host: authentik.local' \
+      http://127.0.0.1/application/o/workflows/.well-known/openid-configuration >/dev/null; then
     echo "OIDC issuers ready"
     break
   fi
@@ -176,7 +205,7 @@ if [[ -n "${GROUP_ID}" ]]; then
 fi
 kubectl apply -f "${ROOT}/infrastructure/vault/ingress.yaml"
 
-echo "==> Install Grafana / Prometheus"
+echo "==> Install Grafana / Prometheus (incl. job failure rules)"
 helm repo add prometheus-community https://prometheus-community.github.io/helm-charts >/dev/null 2>&1 || true
 helm repo update prometheus-community >/dev/null
 helm upgrade --install monitoring prometheus-community/kube-prometheus-stack \
@@ -185,20 +214,27 @@ helm upgrade --install monitoring prometheus-community/kube-prometheus-stack \
   -f "${ROOT}/infrastructure/monitoring/values.yaml"
 kubectl -n monitoring rollout status deploy/monitoring-grafana --timeout=300s || true
 
+echo "==> Headlamp + Argo Workflows (jobs platform)"
+bash "${ROOT}/scripts/bootstrap-jobs-platform.sh"
+
 echo
 echo "======== POC LOGIN ========="
-echo "Authentik: http://authentik.local"
+echo "Authentik:  http://authentik.local"
 echo "  user: akadmin"
 echo "  pass: (cat infrastructure/authentik/secrets/bootstrap-password)"
-echo "Argo CD:  http://argocd.local  → LOG IN VIA authentik"
-echo "Vault:    http://vault.local/ui → Method OIDC (or token root)"
-echo "Grafana:  http://grafana.local  → admin / admin"
-echo "TODO:     http://todo-dev.local  (CronJob cleans done todos)"
+echo "Argo CD:    http://argocd.local       → LOG IN VIA authentik"
+echo "Vault:      http://vault.local/ui     → OIDC (or token root)"
+echo "Grafana:    http://grafana.local      → admin / admin"
+echo "Headlamp:   http://headlamp.local     → LOG IN VIA authentik"
+echo "Workflows:  http://workflows.local    → LOG IN VIA authentik"
+echo "TODO:       http://todo-dev.local"
 echo
 echo "Hosts:"
 echo "  127.0.0.1 authentik.local argocd.local vault.local grafana.local"
+echo "  127.0.0.1 headlamp.local workflows.local"
 echo "  127.0.0.1 todo-dev.local todo-stage.local todo-prod.local"
 echo
-echo "TODO GitOps: commit/push envs+chart (cron + 0.1.1), then re-enable Argo auto-sync."
-echo "  Do not helm-upgrade TODO while Argo selfHeal is on."
+echo "Jobs POC: CronJob runs app image CLI (job cleanup/digest)."
+echo "  See docs/JOBS_ARCHITECTURE.md"
+echo "TODO GitOps: commit/push envs+chart (tag 0.1.2), then Argo sync."
 echo "============================"

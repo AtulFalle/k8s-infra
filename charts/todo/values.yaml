@@ -51,10 +51,29 @@ persistence:
   size: 1Gi
   mountPath: /data
 
-# POC: delete completed todos on a schedule (config in Git, not Vault)
-cronjob:
-  enabled: true
-  schedule: "*/10 * * * *"
+# Scheduled jobs: CronJob → same app image → `node server.js job <name>`
+cronjobs:
+  cleanup:
+    enabled: true
+    schedule: "*/10 * * * *"
+    job: cleanup
+    concurrencyPolicy: Forbid
+    activeDeadlineSeconds: 300
+    backoffLimit: 0
+  digest:
+    enabled: true
+    schedule: "0 * * * *"
+    job: digest
+    concurrencyPolicy: Forbid
+    activeDeadlineSeconds: 300
+    backoffLimit: 0
+  fail-once:
+    enabled: false
+    schedule: "*/30 * * * *"
+    job: fail-once
+    concurrencyPolicy: Forbid
+    activeDeadlineSeconds: 60
+    backoffLimit: 0
 
 resources: {}
 

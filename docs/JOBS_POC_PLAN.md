@@ -3,7 +3,7 @@
 This document is the **implementation plan** for scheduled/batch work on the Kind platform.  
 It locks the production-grade pattern before app development starts.
 
-**Status:** Plan only — implementation follows in phases below.
+**Status:** Implemented — see [JOBS_ARCHITECTURE.md](JOBS_ARCHITECTURE.md).
 
 ---
 
