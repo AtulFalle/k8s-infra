@@ -87,9 +87,10 @@ Can it be one idempotent function?
 ## Bootstrap
 
 ```bash
-bash scripts/finalize-poc.sh          # Authentik OIDC + Grafana + Headlamp + Workflows
-# Commit envs/todo/* + charts/todo → Argo CD syncs CronJobs
-TAG=0.1.2 bash scripts/deploy-todo-poc.sh   # build/push todo image (local)
+bash scripts/finalize-poc.sh          # full platform incl. Headlamp + Workflows + OIDC
+# Or if platform already up:
+bash scripts/bootstrap-jobs-platform.sh
+bash scripts/sync-jobs-oidc.sh        # register Headlamp/Workflows in Authentik
 ```
 
 ## See also

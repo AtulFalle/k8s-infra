@@ -42,9 +42,13 @@ spec:
                 - name: DB_PATH
                   value: {{ printf "%s/todo.db" $.Values.persistence.mountPath | quote }}
                 {{- range $key, $value := $.Values.config }}
+                {{- if ne $key "APP_VERSION" }}
                 - name: {{ $key }}
                   value: {{ $value | quote }}
                 {{- end }}
+                {{- end }}
+                - name: APP_VERSION
+                  value: {{ $.Values.image.tag | default $.Chart.AppVersion | quote }}
               {{- if $.Values.secrets.enabled }}
               envFrom:
                 - secretRef:

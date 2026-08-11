@@ -3,7 +3,11 @@ replicaCount: 1
 
 config:
   inCluster: true
-  # clientID, clientSecret, issuerURL set by scripts/bootstrap-jobs-platform.sh
+  oidc:
+    clientID: ""
+    clientSecret: ""
+    issuerURL: "http://authentik.local/application/o/headlamp/"
+    scopes: "openid,profile,email"
 
 ingress:
   enabled: true
@@ -12,7 +16,7 @@ ingress:
     - host: headlamp.local
       paths:
         - path: /
-          pathType: Prefix
+          type: Prefix
 
 resources:
   requests:

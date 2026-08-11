@@ -2,7 +2,7 @@ replicaCount: 1
 
 image:
   repository: atulfalle1815/todo
-  tag: "0.1.2"
+  tag: "sha-bootstrap"
   pullPolicy: Always
 
 imagePullSecrets:
@@ -13,7 +13,6 @@ serviceAccount:
 
 config:
   APP_ENV: prod
-  APP_VERSION: "0.1.2"
 
 secrets:
   enabled: true

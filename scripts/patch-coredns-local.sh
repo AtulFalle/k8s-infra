@@ -20,6 +20,8 @@ rewrites = textwrap.dedent("""\
     rewrite name exact headlamp.local ingress-nginx-controller.ingress-nginx.svc.cluster.local
     rewrite name exact workflows.local ingress-nginx-controller.ingress-nginx.svc.cluster.local
     rewrite name exact todo-dev.local ingress-nginx-controller.ingress-nginx.svc.cluster.local
+    rewrite name exact todo-stage.local ingress-nginx-controller.ingress-nginx.svc.cluster.local
+    rewrite name exact todo-prod.local ingress-nginx-controller.ingress-nginx.svc.cluster.local
 """)
 # Kind uses 4-space indent
 needle = "    ready\n"

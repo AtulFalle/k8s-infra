@@ -214,8 +214,18 @@ helm upgrade --install monitoring prometheus-community/kube-prometheus-stack \
   -f "${ROOT}/infrastructure/monitoring/values.yaml"
 kubectl -n monitoring rollout status deploy/monitoring-grafana --timeout=300s || true
 
+echo "==> Install Argo CD Image Updater (dev auto-deploy from Docker Hub sha tags)"
+helm repo add argo https://argoproj.github.io/argo-helm >/dev/null 2>&1 || true
+helm repo update argo >/dev/null
+helm upgrade --install argocd-image-updater argo/argocd-image-updater \
+  --namespace argocd \
+  --version 0.12.3 \
+  -f "${ROOT}/infrastructure/argocd-image-updater/values.yaml"
+kubectl -n argocd rollout status deploy/argocd-image-updater --timeout=180s || true
+
 echo "==> Headlamp + Argo Workflows (jobs platform)"
 bash "${ROOT}/scripts/bootstrap-jobs-platform.sh"
+bash "${ROOT}/scripts/sync-jobs-oidc.sh"
 
 echo
 echo "======== POC LOGIN ========="
@@ -236,5 +246,5 @@ echo "  127.0.0.1 todo-dev.local todo-stage.local todo-prod.local"
 echo
 echo "Jobs POC: CronJob runs app image CLI (job cleanup/digest)."
 echo "  See docs/JOBS_ARCHITECTURE.md"
-echo "TODO GitOps: commit/push envs+chart (tag 0.1.2), then Argo sync."
+echo "TODO GitOps: push to GitHub → Argo syncs; CI pushes sha-* → Image Updater deploys dev."
 echo "============================"

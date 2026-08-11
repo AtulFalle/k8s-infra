@@ -6,16 +6,10 @@ metadata:
   labels:
     app.kubernetes.io/part-of: platform
 spec:
-  description: Application workloads (dev / stage / prod)
+  description: TODO app only (dev / stage / prod)
   sourceRepos:
     - https://github.com/AtulFalle/k8s-infra.git
   destinations:
-    - namespace: dev
-      server: https://kubernetes.default.svc
-    - namespace: stage
-      server: https://kubernetes.default.svc
-    - namespace: prod
-      server: https://kubernetes.default.svc
     - namespace: todo-dev
       server: https://kubernetes.default.svc
     - namespace: todo-stage
