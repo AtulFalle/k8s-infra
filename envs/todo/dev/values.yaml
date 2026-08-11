@@ -2,7 +2,7 @@ replicaCount: 1
 
 image:
   repository: atulfalle1815/todo
-  tag: "sha-9e9d580"
+  tag: "0.1.1"
   pullPolicy: Always
 
 imagePullSecrets:
@@ -13,7 +13,7 @@ serviceAccount:
 
 config:
   APP_ENV: dev
-  APP_VERSION: "sha-9e9d580"
+  APP_VERSION: "0.1.1"
 
 secrets:
   enabled: true
@@ -28,3 +28,7 @@ ingress:
 persistence:
   enabled: true
   size: 1Gi
+
+cronjob:
+  enabled: true
+  schedule: "*/5 * * * *"

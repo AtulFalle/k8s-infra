@@ -1,0 +1,21 @@
+# CoreDNS stub so in-cluster pods resolve *.local to ingress-nginx (OIDC issuer checks).
+# Apply: kubectl apply -f infrastructure/coredns/custom.yaml && kubectl -n kube-system rollout restart deploy/coredns
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: coredns-custom
+  namespace: kube-system
+  labels:
+    app.kubernetes.io/part-of: platform
+data:
+  local.server: |
+    local:53 {
+        errors
+        cache 30
+        rewrite name exact authentik.local ingress-nginx-controller.ingress-nginx.svc.cluster.local
+        rewrite name exact argocd.local ingress-nginx-controller.ingress-nginx.svc.cluster.local
+        rewrite name exact vault.local ingress-nginx-controller.ingress-nginx.svc.cluster.local
+        rewrite name exact grafana.local ingress-nginx-controller.ingress-nginx.svc.cluster.local
+        rewrite name exact todo-dev.local ingress-nginx-controller.ingress-nginx.svc.cluster.local
+        forward . /etc/resolv.conf
+    }

@@ -51,6 +51,11 @@ persistence:
   size: 1Gi
   mountPath: /data
 
+# POC: delete completed todos on a schedule (config in Git, not Vault)
+cronjob:
+  enabled: true
+  schedule: "*/10 * * * *"
+
 resources: {}
 
 livenessProbe:

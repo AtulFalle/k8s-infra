@@ -1,7 +1,6 @@
 # Agreed deployment flow (POC)
 
-Goal: validate **Compose → PR → Dev → Stage → Prod** with one small TODO app.  
-No personal sandboxes. No Unleash/analytics/cron in v1 (add later).
+Goal: validate **Compose → PR → Dev → Stage → Prod** with one small TODO app, plus platform pieces (Authentik OIDC, Vault/ESO, Grafana, cron).
 
 ## Pipeline
 
@@ -30,7 +29,7 @@ Promote SAME release tag → PROD
 
 | Type | Store | Example |
 |------|--------|---------|
-| Non-secret config | Git `envs/todo/<env>/values.yaml` | timeouts, `APP_ENV` |
+| Non-secret config | Git `envs/todo/<env>/values.yaml` | timeouts, `APP_ENV`, cron schedule |
 | Secrets | Vault `secret/<env>/todo` → ESO → pod env | `APP_BANNER`, `DEMO_API_KEY` |
 | Images | Docker Hub `atulfalle1815/todo` | tag promoted Dev→Stage→Prod |
 | Feature flags | Unleash later | kill switches without redeploy |
@@ -50,6 +49,32 @@ Required GitHub secrets:
 
 Local Kind also needs an `imagePullSecret` named `dockerhub` (see `scripts/create-dockerhub-pull-secret.sh`).
 
+## Platform (Authentik / Vault / Grafana)
+
+Finalize wiring (OIDC + Grafana + CoreDNS):
+
+```bash
+bash scripts/finalize-poc.sh
+```
+
+| Service | URL | Login |
+|---------|-----|--------|
+| Authentik | http://authentik.local | `akadmin` + `infrastructure/authentik/secrets/bootstrap-password` |
+| Argo CD | http://argocd.local | **LOG IN VIA authentik** (or local admin) |
+| Vault | http://vault.local/ui | **OIDC** (or token `root`) |
+| Grafana | http://grafana.local | `admin` / `admin` |
+| TODO Dev | http://todo-dev.local | Vault banner proves ESO |
+
+Hosts:
+
+```text
+127.0.0.1 authentik.local argocd.local vault.local grafana.local
+127.0.0.1 todo-dev.local todo-stage.local todo-prod.local
+```
+
+OIDC RBAC: `akadmin` must be in Authentik groups **Argo CD Admins** and **Vault Admins** (finalize script / blueprint links these).
+
+**GitOps note:** do not `helm upgrade` TODO while Argo owns the Application with self-heal; change `envs/todo/*/values.yaml` and let Argo sync (or pause sync first for local Kind experiments).
 
 ## TODO app (this POC)
 
@@ -58,6 +83,7 @@ Local Kind also needs an `imagePullSecret` named `dockerhub` (see `scripts/creat
 | App | Single container: API + static UI + SQLite |
 | Local | `workloads/todo/docker-compose.yml` |
 | Deploy | Helm `charts/todo` + Argo Apps |
+| Cron | **Planned:** CronJob → app image CLI `job <name>` — see [JOBS_POC_PLAN.md](JOBS_POC_PLAN.md) |
 | Hosts | `todo-dev.local`, `todo-stage.local`, `todo-prod.local` |
 
 QA uses **Stage** in this POC to avoid an extra environment.
@@ -66,8 +92,8 @@ QA uses **Stage** in this POC to avoid an extra environment.
 
 ```bash
 # 1) Build & load into Kind (local registry/CI later)
-docker build -t todo:0.1.0 workloads/todo
-kind load docker-image todo:0.1.0
+docker build -t atulfalle1815/todo:0.1.1 workloads/todo
+kind load docker-image atulfalle1815/todo:0.1.1
 
 # 2) Set tag in envs/todo/dev/values.yaml → commit → Argo syncs Dev
 
@@ -78,11 +104,10 @@ kind load docker-image todo:0.1.0
 
 ## Later (not blocking this POC)
 
-- Authentik OIDC for kubectl / Vault / Argo  
+- Authentik OIDC for kubectl  
 - PR preview ApplicationSet  
 - Unleash feature flags  
 - Postgres instead of SQLite  
-- Grafana / cron dashboards  
 - Dedicated QA namespace  
 
 ## Success criteria for this POC
@@ -92,3 +117,6 @@ kind load docker-image todo:0.1.0
 3. UI shows **Vault connected** + per-env banner (ESO synced)  
 4. Same image tag promoted Dev → Stage → Prod via Git values / Actions  
 5. Each env reachable on its `*.local` host  
+6. Argo CD + Vault login via Authentik OIDC  
+7. Grafana up at `grafana.local`  
+8. CronJob cleans completed todos in-cluster (CLI job mode — [JOBS_POC_PLAN.md](JOBS_POC_PLAN.md))  
