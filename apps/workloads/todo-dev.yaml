@@ -29,9 +29,7 @@ spec:
   destination:
     server: https://kubernetes.default.svc
     namespace: todo-dev
+  # Dev tracks latest sha-* via Image Updater but requires manual sync.
   syncPolicy:
-    automated:
-      prune: true
-      selfHeal: true
     syncOptions:
       - CreateNamespace=true

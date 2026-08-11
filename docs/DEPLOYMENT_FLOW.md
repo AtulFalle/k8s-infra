@@ -17,7 +17,7 @@ Merge to master
 GitHub Actions: build & push atulfalle1815/todo:sha-<commit>
         │  (no commit back to master)
         ▼
-Argo CD Image Updater → todo-dev auto-sync
+Argo CD Image Updater → todo-dev (manual sync)
         │  smoke OK
         ▼
 Manual promote workflow (or Argo CLI/UI) → set `todo-stage` image.tag
@@ -45,12 +45,19 @@ PROD
 
 Workflow: `.github/workflows/todo.yml`
 
-### Dev (automatic)
+### Dev (CI publish + manual Argo sync)
 
 1. Push to `master` under `workloads/todo/` or `charts/todo/`
 2. CI builds & pushes `atulfalle1815/todo:sha-<7-char-sha>`
 3. **No bot commit to master**
-4. Argo CD Image Updater on `todo-dev` sets `image.tag` → **auto-sync** deploys
+4. Argo CD controls deployment sync (manual by policy)
+
+### Release tags (workflow-driven)
+
+1. Actions → **Run workflow** with `promote_to=none`
+2. Set optional `release_tag` (for example `v1.2.3`)
+3. Workflow publishes Docker release tag from the built `sha-*` image
+4. Workflow creates matching GitHub Release
 
 ### Stage / Prod (manual workflow + Argo CD sync)
 
@@ -69,7 +76,7 @@ Required for deploy from CI: `KUBECONFIG_DATA` (base64 kubeconfig)
 
 | App | Auto-sync | Notes |
 |-----|-----------|-------|
-| `todo-dev` | **Yes** | Image tag from Image Updater |
+| `todo-dev` | **No** | Image tag from Image Updater; user syncs manually |
 | `todo-stage` | **No** | Tag + sync via Argo CD (workflow is optional convenience) |
 | `todo-prod` | **No** | Tag + sync via Argo CD (workflow is optional convenience) |
 

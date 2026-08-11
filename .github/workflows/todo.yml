@@ -10,20 +10,24 @@ on:
   workflow_dispatch:
     inputs:
       promote_to:
-        description: "Deploy to stage or prod via Argo CD"
+        description: "Deploy target via Argo CD"
         type: choice
         options:
           - none
           - stage
           - prod
         default: none
+      release_tag:
+        description: "Optional release tag (example: v1.2.3). Used only when promote_to=none."
+        type: string
+        default: ""
       image_tag:
         description: "Image tag (sha-abc1234). Empty = latest from dev cluster, else Docker Hub latest sha-*"
         type: string
         default: ""
 
 permissions:
-  contents: read
+  contents: write
 
 env:
   IMAGE_NAME: atulfalle1815/todo
@@ -59,10 +63,42 @@ jobs:
           tags: |
             ${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.tag }}
 
-      - name: Dev deploy note
+      - name: Validate release tag input
+        if: github.event_name == 'workflow_dispatch' && inputs.promote_to == 'none' && inputs.release_tag != ''
+        env:
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: |
+          set -euo pipefail
+          if [[ ! "${RELEASE_TAG}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z]+)*$ ]]; then
+            echo "Invalid release_tag: ${RELEASE_TAG}"
+            echo "Expected semver-like tag such as v1.2.3 or v1.2.3-rc.1"
+            exit 1
+          fi
+
+      - name: Publish Docker release tag
+        if: github.event_name == 'workflow_dispatch' && inputs.promote_to == 'none' && inputs.release_tag != ''
+        env:
+          RELEASE_TAG: ${{ inputs.release_tag }}
+          SHA_TAG: ${{ steps.meta.outputs.tag }}
+        run: |
+          set -euo pipefail
+          docker buildx imagetools create \
+            -t "${IMAGE_NAME}:${RELEASE_TAG}" \
+            "${IMAGE_NAME}:${SHA_TAG}"
+          echo "Published ${IMAGE_NAME}:${RELEASE_TAG} from ${IMAGE_NAME}:${SHA_TAG}"
+
+      - name: Create GitHub release
+        if: github.event_name == 'workflow_dispatch' && inputs.promote_to == 'none' && inputs.release_tag != ''
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.release_tag }}
+          target_commitish: ${{ github.sha }}
+          generate_release_notes: true
+
+      - name: Build publish note
         run: |
           echo "Pushed ${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.tag }}"
-          echo "Argo CD Image Updater on todo-dev picks up new sha-* tags (no Git commit to master)."
+          echo "Argo CD handles deployment sync separately from CI."
 
   promote:
     if: github.event_name == 'workflow_dispatch' && inputs.promote_to != 'none'
@@ -70,9 +106,10 @@ jobs:
     env:
       TARGET: ${{ inputs.promote_to }}
       ARGO_APP: todo-${{ inputs.promote_to }}
+      HAS_KUBECONFIG: ${{ secrets.KUBECONFIG_DATA != '' }}
     steps:
       - name: Install Argo CD CLI
-        if: secrets.KUBECONFIG_DATA != ''
+        if: env.HAS_KUBECONFIG == 'true'
         run: |
           curl -sSL -o /usr/local/bin/argocd \
             "https://github.com/argoproj/argo-cd/releases/download/${ARGOCD_VERSION}/argocd-linux-amd64"
@@ -80,7 +117,7 @@ jobs:
           argocd version --client
 
       - name: Configure kubeconfig
-        if: secrets.KUBECONFIG_DATA != ''
+        if: env.HAS_KUBECONFIG == 'true'
         env:
           KUBECONFIG_DATA: ${{ secrets.KUBECONFIG_DATA }}
         run: |
@@ -153,7 +190,7 @@ jobs:
           echo "Promoting ${TAG} → ${TARGET}"
 
       - name: Set Argo CD image tag
-        if: secrets.KUBECONFIG_DATA != ''
+        if: env.HAS_KUBECONFIG == 'true'
         env:
           TAG: ${{ steps.tag.outputs.tag }}
         run: |
@@ -162,7 +199,7 @@ jobs:
           argocd app set "${ARGO_APP}" --core --helm-set "image.tag=${TAG}"
 
       - name: Sync Argo CD Application
-        if: secrets.KUBECONFIG_DATA != ''
+        if: env.HAS_KUBECONFIG == 'true'
         env:
           TAG: ${{ steps.tag.outputs.tag }}
         run: |
@@ -177,7 +214,7 @@ jobs:
           echo "Deployed ${RUNNING} to ${TARGET}"
 
       - name: Sync skipped (no cluster access)
-        if: secrets.KUBECONFIG_DATA == ''
+        if: env.HAS_KUBECONFIG != 'true'
         run: |
           echo "::warning::KUBECONFIG_DATA not set — cannot set/sync Argo CD app from CI."
           echo "Run manually: argocd app set ${ARGO_APP} --helm-set image.tag=<sha-tag> --core"

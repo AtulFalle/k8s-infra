@@ -13,7 +13,7 @@ docker compose  →  push master (workloads/todo)  →  build + push
                    (no commit to master)                    │
                                                             ▼
                                                    Image Updater → todo-dev
-                                                   (auto-sync ON)
+                                                   (manual sync)
                                                             │
                      workflow_dispatch: promote stage/prod  │
                      (optional convenience trigger)          ▼
@@ -22,7 +22,7 @@ docker compose  →  push master (workloads/todo)  →  build + push
 
 | Environment | Deploy trigger | Sync mode | Image tag source |
 |-------------|----------------|-----------|------------------|
-| **Dev** | Every push to `master` (todo paths) | **Auto-sync** | `sha-*` via Image Updater (not in Git) |
+| **Dev** | Every push to `master` (todo paths) | **Manual sync** | `sha-*` via Image Updater (not in Git) |
 | **Stage** | Argo CD CLI/UI or optional promote workflow | **Manual sync** | Argo CD app Helm parameter (`image.tag`) |
 | **Prod** | Argo CD CLI/UI or optional promote workflow | **Manual sync** | Argo CD app Helm parameter (`image.tag`) |
 
@@ -75,7 +75,13 @@ Workflow: [`.github/workflows/todo.yml`](.github/workflows/todo.yml)
 
 1. Build & push `atulfalle1815/todo:sha-<7-char-sha>`
 2. **Does not** commit to `master`
-3. Argo CD Image Updater on `todo-dev` detects the new tag → auto-sync deploys dev
+3. Deployment sync is handled by Argo CD (manual sync policy)
+
+**Release tag workflow** (Actions → Run workflow, `promote_to=none`):
+
+1. Builds and pushes `sha-<git-sha>`
+2. If `release_tag` is provided (for example `v1.2.3`), publishes Docker tag `atulfalle1815/todo:v1.2.3`
+3. Creates GitHub Release for the same tag
 
 **Manual promote** (Actions → Run workflow):
 
