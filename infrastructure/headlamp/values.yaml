@@ -1,0 +1,23 @@
+# Headlamp — Kubernetes ops UI (CronJob view / suspend / trigger)
+replicaCount: 1
+
+config:
+  inCluster: true
+  # clientID, clientSecret, issuerURL set by scripts/bootstrap-jobs-platform.sh
+
+ingress:
+  enabled: true
+  ingressClassName: nginx
+  hosts:
+    - host: headlamp.local
+      paths:
+        - path: /
+          pathType: Prefix
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 256Mi

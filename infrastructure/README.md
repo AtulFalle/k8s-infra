@@ -9,6 +9,9 @@ Versioned config for cluster platform services. Workloads live under `charts/` +
 | Vault | `vault/` | Helm + Ingress + policies |
 | External Secrets | `external-secrets/` | Helm |
 | Authentik | `authentik/` | Helm + Ingress + local secret files |
+| Headlamp | `headlamp/` | Helm + Authentik OIDC |
+| Argo Workflows | `argo-workflows/` | Helm + Authentik OIDC |
+| Monitoring | `monitoring/` | kube-prometheus-stack + job alerts |
 
 Apply Ingresses:
 

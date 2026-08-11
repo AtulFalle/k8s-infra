@@ -50,6 +50,26 @@ server:
         secretKeyRef:
           name: authentik-oidc-clients
           key: vault-client-secret
+    - name: HEADLAMP_OIDC_CLIENT_ID
+      valueFrom:
+        secretKeyRef:
+          name: authentik-oidc-clients
+          key: headlamp-client-id
+    - name: HEADLAMP_OIDC_CLIENT_SECRET
+      valueFrom:
+        secretKeyRef:
+          name: authentik-oidc-clients
+          key: headlamp-client-secret
+    - name: WORKFLOWS_OIDC_CLIENT_ID
+      valueFrom:
+        secretKeyRef:
+          name: authentik-oidc-clients
+          key: workflows-client-id
+    - name: WORKFLOWS_OIDC_CLIENT_SECRET
+      valueFrom:
+        secretKeyRef:
+          name: authentik-oidc-clients
+          key: workflows-client-secret
   resources:
     requests:
       cpu: 100m
@@ -91,6 +111,26 @@ worker:
         secretKeyRef:
           name: authentik-oidc-clients
           key: vault-client-secret
+    - name: HEADLAMP_OIDC_CLIENT_ID
+      valueFrom:
+        secretKeyRef:
+          name: authentik-oidc-clients
+          key: headlamp-client-id
+    - name: HEADLAMP_OIDC_CLIENT_SECRET
+      valueFrom:
+        secretKeyRef:
+          name: authentik-oidc-clients
+          key: headlamp-client-secret
+    - name: WORKFLOWS_OIDC_CLIENT_ID
+      valueFrom:
+        secretKeyRef:
+          name: authentik-oidc-clients
+          key: workflows-client-id
+    - name: WORKFLOWS_OIDC_CLIENT_SECRET
+      valueFrom:
+        secretKeyRef:
+          name: authentik-oidc-clients
+          key: workflows-client-secret
   resources:
     requests:
       cpu: 100m

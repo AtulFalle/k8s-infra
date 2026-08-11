@@ -1,10 +1,10 @@
 # k8s-infra
 
-Kind-based platform POC: Authentik, Argo CD, Vault, Grafana, ingress, and a minimal **TODO** app to prove Dev → Stage → Prod.
+Kind-based platform POC: Authentik, Argo CD, Vault, Grafana, Headlamp, Argo Workflows, ingress, and a minimal **TODO** app to prove Dev → Stage → Prod.
 
 ## Agreed flow
 
-See **[docs/DEPLOYMENT_FLOW.md](docs/DEPLOYMENT_FLOW.md)**.
+See **[docs/DEPLOYMENT_FLOW.md](docs/DEPLOYMENT_FLOW.md)** and **[docs/JOBS_ARCHITECTURE.md](docs/JOBS_ARCHITECTURE.md)**.
 
 ```text
 Compose (local) → PR (build + k8s check + review) → merge
@@ -19,14 +19,14 @@ cd workloads/todo && docker compose up --build
 # http://localhost:3000
 
 # Kind + Docker Hub + Vault (full E2E)
-bash scripts/deploy-todo-poc.sh
+TAG=0.1.2 bash scripts/deploy-todo-poc.sh
 ```
 
 UI proves the chain when open:
 
 - **env** / **version** from Git values  
 - **banner** + **vault: connected** from Vault → External Secrets → pod  
-- **CronJob** (planned CLI job mode — see [docs/JOBS_POC_PLAN.md](docs/JOBS_POC_PLAN.md))
+- **CronJobs** run `node server.js job cleanup|digest` on schedule  
 
 ### GitHub Actions (Argo CD image flow)
 
@@ -42,6 +42,7 @@ Hosts to add:
 ```text
 127.0.0.1  todo-dev.local todo-stage.local todo-prod.local
 127.0.0.1  authentik.local argocd.local vault.local grafana.local
+127.0.0.1  headlamp.local workflows.local
 127.0.0.1  demo-dev.local demo-stage.local demo-prod.local
 ```
 
@@ -50,11 +51,14 @@ Hosts to add:
 | Path | Purpose |
 |------|---------|
 | `docs/DEPLOYMENT_FLOW.md` | Agreed DevOps flow |
+| `docs/JOBS_ARCHITECTURE.md` | Scheduled/batch jobs standard |
+| `docs/JOBS_POC_PLAN.md` | Jobs POC implementation plan |
 | `workloads/todo/` | TODO app source + Compose |
-| `charts/todo/` | Helm chart (incl. CronJob) |
+| `charts/todo/` | Helm chart (CronJobs + app) |
+| `workflows/todo/` | Argo Workflows reference |
 | `envs/todo/{dev,stage,prod}/` | Per-env image tag + config |
 | `apps/workloads/todo-*.yaml` | Argo CD Applications |
-| `infrastructure/` | Authentik, Vault, Argo, Grafana, CoreDNS |
+| `infrastructure/` | Platform (Authentik, Vault, Headlamp, Workflows, …) |
 | `scripts/` | Bootstrap / ingress / finalize / todo deploy |
 
 ## Platform
@@ -63,7 +67,7 @@ Hosts to add:
 kind create cluster --name kind --config kind-config.yaml
 bash scripts/bootstrap-platform.sh
 bash scripts/apply-platform-ingress.sh
-bash scripts/finalize-poc.sh   # Authentik OIDC + Vault OIDC + Grafana + CoreDNS
+bash scripts/finalize-poc.sh   # OIDC + Grafana + Headlamp + Workflows
 ```
 
 ### POC login cheat sheet
@@ -74,6 +78,8 @@ bash scripts/finalize-poc.sh   # Authentik OIDC + Vault OIDC + Grafana + CoreDNS
 | Argo CD | http://argocd.local | **LOG IN VIA authentik** (group `Argo CD Admins`) |
 | Vault | http://vault.local/ui | **OIDC** or token `root` (group `Vault Admins`) |
 | Grafana | http://grafana.local | `admin` / `admin` |
+| Headlamp | http://headlamp.local | **LOG IN VIA authentik** |
+| Argo Workflows | http://workflows.local | **LOG IN VIA authentik** |
 | TODO | http://todo-dev.local | Vault banner proves ESO |
 
 Local Argo admin still works:

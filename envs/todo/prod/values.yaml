@@ -2,7 +2,7 @@ replicaCount: 1
 
 image:
   repository: atulfalle1815/todo
-  tag: "0.1.1"
+  tag: "0.1.2"
   pullPolicy: Always
 
 imagePullSecrets:
@@ -13,7 +13,7 @@ serviceAccount:
 
 config:
   APP_ENV: prod
-  APP_VERSION: "0.1.1"
+  APP_VERSION: "0.1.2"
 
 secrets:
   enabled: true
@@ -29,7 +29,10 @@ persistence:
   enabled: true
   size: 1Gi
 
-cronjob:
-  enabled: true
-  # hourly in prod
-  schedule: "0 * * * *"
+cronjobs:
+  cleanup:
+    enabled: true
+    schedule: "0 * * * *"
+  digest:
+    enabled: true
+    schedule: "0 6 * * *"

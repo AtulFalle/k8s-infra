@@ -2,7 +2,7 @@ replicaCount: 1
 
 image:
   repository: atulfalle1815/todo
-  tag: "sha-ef50024"
+  tag: "0.1.2"
   pullPolicy: Always
 
 imagePullSecrets:
@@ -13,7 +13,7 @@ serviceAccount:
 
 config:
   APP_ENV: dev
-  APP_VERSION: "sha-ef50024"
+  APP_VERSION: "0.1.2"
 
 secrets:
   enabled: true
@@ -29,6 +29,14 @@ persistence:
   enabled: true
   size: 1Gi
 
-cronjob:
-  enabled: true
-  schedule: "*/5 * * * *"
+cronjobs:
+  cleanup:
+    enabled: true
+    schedule: "*/5 * * * *"
+  digest:
+    enabled: true
+    schedule: "*/15 * * * *"
+  # Enable to test Grafana job-failure alert in dev
+  fail-once:
+    enabled: false
+    schedule: "*/30 * * * *"

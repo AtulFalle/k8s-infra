@@ -1,30 +1,69 @@
-{{- if .Values.cronjob.enabled }}
+{{- range $name, $cj := .Values.cronjobs }}
+{{- if $cj.enabled }}
+---
 apiVersion: batch/v1
 kind: CronJob
 metadata:
-  name: {{ include "todo.fullname" . }}-cleanup
+  name: {{ include "todo.fullname" $ }}-{{ $name }}
   labels:
-    {{- include "todo.labels" . | nindent 4 }}
+    {{- include "todo.labels" $ | nindent 4 }}
+    app.kubernetes.io/component: cron
+    todo/job: {{ $cj.job | quote }}
 spec:
-  schedule: {{ .Values.cronjob.schedule | quote }}
-  successfulJobsHistoryLimit: 3
-  failedJobsHistoryLimit: 3
+  schedule: {{ $cj.schedule | quote }}
+  concurrencyPolicy: {{ $cj.concurrencyPolicy | default "Forbid" }}
+  successfulJobsHistoryLimit: {{ $cj.successfulJobsHistoryLimit | default 3 }}
+  failedJobsHistoryLimit: {{ $cj.failedJobsHistoryLimit | default 3 }}
   jobTemplate:
     spec:
+      backoffLimit: {{ $cj.backoffLimit | default 0 }}
+      activeDeadlineSeconds: {{ $cj.activeDeadlineSeconds | default 300 }}
       template:
         metadata:
           labels:
-            {{- include "todo.selectorLabels" . | nindent 12 }}
+            {{- include "todo.selectorLabels" $ | nindent 12 }}
             app.kubernetes.io/component: cron
+            todo/job: {{ $cj.job | quote }}
         spec:
-          restartPolicy: OnFailure
+          restartPolicy: Never
+          serviceAccountName: {{ $.Values.serviceAccount.name }}
+          {{- with $.Values.imagePullSecrets }}
+          imagePullSecrets:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           containers:
-            - name: cleanup
-              image: curlimages/curl:8.12.1
-              imagePullPolicy: IfNotPresent
-              args:
-                - -sS
-                - -X
-                - POST
-                - http://{{ include "todo.fullname" . }}/api/maintenance/cleanup-done
+            - name: job
+              image: "{{ $.Values.image.repository }}:{{ $.Values.image.tag | default $.Chart.AppVersion }}"
+              imagePullPolicy: {{ $.Values.image.pullPolicy }}
+              command: ["node", "server.js", "job", {{ $cj.job | quote }}]
+              env:
+                - name: PORT
+                  value: {{ $.Values.service.targetPort | quote }}
+                - name: DB_PATH
+                  value: {{ printf "%s/todo.db" $.Values.persistence.mountPath | quote }}
+                {{- range $key, $value := $.Values.config }}
+                - name: {{ $key }}
+                  value: {{ $value | quote }}
+                {{- end }}
+              {{- if $.Values.secrets.enabled }}
+              envFrom:
+                - secretRef:
+                    name: {{ include "todo.fullname" $ }}-secrets
+              {{- end }}
+              {{- with $.Values.resources }}
+              resources:
+                {{- toYaml . | nindent 16 }}
+              {{- end }}
+              {{- if $.Values.persistence.enabled }}
+              volumeMounts:
+                - name: data
+                  mountPath: {{ $.Values.persistence.mountPath }}
+              {{- end }}
+          {{- if $.Values.persistence.enabled }}
+          volumes:
+            - name: data
+              persistentVolumeClaim:
+                claimName: {{ include "todo.fullname" $ }}
+          {{- end }}
+{{- end }}
 {{- end }}

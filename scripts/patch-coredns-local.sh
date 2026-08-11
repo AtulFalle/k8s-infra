@@ -8,7 +8,7 @@ core = subprocess.check_output(
     ["kubectl", "get", "cm", "coredns", "-n", "kube-system", "-o", "jsonpath={.data.Corefile}"],
     text=True,
 )
-if "rewrite name exact authentik.local" in core:
+if "rewrite name exact authentik.local" in core and "rewrite name exact headlamp.local" in core:
     print("CoreDNS already patched")
     raise SystemExit(0)
 
@@ -17,6 +17,8 @@ rewrites = textwrap.dedent("""\
     rewrite name exact argocd.local ingress-nginx-controller.ingress-nginx.svc.cluster.local
     rewrite name exact vault.local ingress-nginx-controller.ingress-nginx.svc.cluster.local
     rewrite name exact grafana.local ingress-nginx-controller.ingress-nginx.svc.cluster.local
+    rewrite name exact headlamp.local ingress-nginx-controller.ingress-nginx.svc.cluster.local
+    rewrite name exact workflows.local ingress-nginx-controller.ingress-nginx.svc.cluster.local
     rewrite name exact todo-dev.local ingress-nginx-controller.ingress-nginx.svc.cluster.local
 """)
 # Kind uses 4-space indent
