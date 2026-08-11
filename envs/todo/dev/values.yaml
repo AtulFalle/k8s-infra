@@ -2,7 +2,7 @@ replicaCount: 1
 
 image:
   repository: atulfalle1815/todo
-  tag: "0.1.1"
+  tag: "sha-ef50024"
   pullPolicy: Always
 
 imagePullSecrets:
@@ -13,7 +13,7 @@ serviceAccount:
 
 config:
   APP_ENV: dev
-  APP_VERSION: "0.1.1"
+  APP_VERSION: "sha-ef50024"
 
 secrets:
   enabled: true
