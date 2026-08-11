@@ -6,24 +6,28 @@ on:
     paths:
       - "workloads/todo/**"
       - "charts/todo/**"
-      - "envs/todo/**"
       - ".github/workflows/todo.yml"
   workflow_dispatch:
     inputs:
       promote_to:
-        description: "Promote current Dev image tag to this environment"
+        description: "Deploy to stage or prod via Argo CD"
         type: choice
         options:
           - none
           - stage
           - prod
         default: none
+      image_tag:
+        description: "Image tag (sha-abc1234). Empty = latest from dev cluster, else Docker Hub latest sha-*"
+        type: string
+        default: ""
 
 permissions:
-  contents: write
+  contents: read
 
 env:
   IMAGE_NAME: atulfalle1815/todo
+  ARGOCD_VERSION: v2.14.2
 
 jobs:
   build-and-push:
@@ -34,7 +38,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Image tag
+      - name: Image tag (sha)
         id: meta
         run: |
           SHORT_SHA=$(echo "${GITHUB_SHA}" | cut -c1-7)
@@ -54,42 +58,127 @@ jobs:
           push: true
           tags: |
             ${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.tag }}
-            ${{ env.IMAGE_NAME }}:dev
 
-      - name: Bump Dev image tag in Git (Argo CD picks this up)
+      - name: Dev deploy note
         run: |
-          TAG="${{ steps.meta.outputs.tag }}"
-          FILE=envs/todo/dev/values.yaml
-          sed -i "s/^  tag: .*/  tag: \"${TAG}\"/" "$FILE"
-          sed -i "s/^  APP_VERSION: .*/  APP_VERSION: \"${TAG}\"/" "$FILE"
-          if git diff --quiet -- "$FILE"; then
-            echo "Dev values already at ${TAG}"
-            exit 0
-          fi
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add "$FILE"
-          git commit -m "chore(todo): deploy ${TAG} to dev"
-          git push
+          echo "Pushed ${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.tag }}"
+          echo "Argo CD Image Updater on todo-dev picks up new sha-* tags (no Git commit to master)."
 
   promote:
     if: github.event_name == 'workflow_dispatch' && inputs.promote_to != 'none'
     runs-on: ubuntu-latest
+    env:
+      TARGET: ${{ inputs.promote_to }}
+      ARGO_APP: todo-${{ inputs.promote_to }}
     steps:
-      - uses: actions/checkout@v4
+      - name: Install Argo CD CLI
+        if: secrets.KUBECONFIG_DATA != ''
+        run: |
+          curl -sSL -o /usr/local/bin/argocd \
+            "https://github.com/argoproj/argo-cd/releases/download/${ARGOCD_VERSION}/argocd-linux-amd64"
+          chmod +x /usr/local/bin/argocd
+          argocd version --client
 
-      - name: Promote image tag
+      - name: Configure kubeconfig
+        if: secrets.KUBECONFIG_DATA != ''
         env:
-          TARGET: ${{ inputs.promote_to }}
+          KUBECONFIG_DATA: ${{ secrets.KUBECONFIG_DATA }}
+        run: |
+          mkdir -p "${HOME}/.kube"
+          echo "${KUBECONFIG_DATA}" | base64 -d > "${HOME}/.kube/config"
+          chmod 600 "${HOME}/.kube/config"
+
+      - name: Resolve image tag to promote
+        id: tag
+        env:
+          INPUT_TAG: ${{ inputs.image_tag }}
+          KUBECONFIG_DATA: ${{ secrets.KUBECONFIG_DATA }}
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
         run: |
           set -euo pipefail
-          DEV_TAG=$(grep -E '^  tag:' envs/todo/dev/values.yaml | head -1 | awk '{print $2}' | tr -d '"')
-          echo "Promoting ${DEV_TAG} → ${TARGET}"
-          FILE="envs/todo/${TARGET}/values.yaml"
-          sed -i "s/^  tag: .*/  tag: \"${DEV_TAG}\"/" "$FILE"
-          sed -i "s/^  APP_VERSION: .*/  APP_VERSION: \"${DEV_TAG}\"/" "$FILE"
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add "$FILE"
-          git commit -m "chore(todo): promote ${DEV_TAG} to ${TARGET}"
-          git push
+
+          validate_tag() {
+            if [[ ! "$1" =~ ^sha-[a-f0-9]{7}$ ]]; then
+              echo "Expected tag like sha-abc1234, got: $1"
+              exit 1
+            fi
+          }
+
+          TAG=""
+
+          if [[ -n "${INPUT_TAG}" ]]; then
+            TAG="${INPUT_TAG}"
+            echo "Using workflow input: ${TAG}"
+          elif [[ -n "${KUBECONFIG_DATA}" ]]; then
+            if kubectl -n todo-dev get deploy todo >/dev/null 2>&1; then
+              IMAGE=$(kubectl -n todo-dev get deploy todo -o jsonpath='{.spec.template.spec.containers[0].image}')
+              TAG="${IMAGE##*:}"
+              echo "Using todo-dev Deployment: ${TAG}"
+            elif command -v argocd >/dev/null 2>&1; then
+              TAG=$(argocd app get todo-dev --core -o json 2>/dev/null \
+                | python3 -c "import json,sys; p=json.load(sys.stdin).get('spec',{}).get('source',{}).get('helm',{}).get('parameters',[]); print(next((x['value'] for x in p if x.get('name')=='image.tag'), ''))" \
+                || true)
+              [[ -n "${TAG}" ]] && echo "Using todo-dev Argo parameter: ${TAG}"
+            fi
+          fi
+
+          if [[ -z "${TAG}" ]]; then
+            echo "Resolving latest sha-* tag from Docker Hub..."
+            TOKEN=$(curl -sSf -X POST -H "Content-Type: application/json" \
+              -d "{\"username\":\"${DOCKERHUB_USERNAME}\",\"password\":\"${DOCKERHUB_TOKEN}\"}" \
+              https://hub.docker.com/v2/users/login \
+              | python3 -c "import json,sys; print(json.load(sys.stdin)['token'])")
+            TAG=$(curl -sSf -H "Authorization: JWT ${TOKEN}" \
+              "https://hub.docker.com/v2/repositories/${DOCKERHUB_USERNAME}/todo/tags?page_size=100&ordering=-last_updated" \
+              | python3 -c "
+          import json, sys, re
+          data = json.load(sys.stdin)
+          pat = re.compile(r'^sha-[a-f0-9]{7}$')
+          for t in data.get('results', []):
+              if pat.match(t.get('name', '')):
+                  print(t['name'])
+                  break
+          ")
+            echo "Using Docker Hub latest sha-*: ${TAG}"
+          fi
+
+          if [[ -z "${TAG}" ]]; then
+            echo "Could not resolve tag — set workflow input image_tag"
+            exit 1
+          fi
+
+          validate_tag "${TAG}"
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "Promoting ${TAG} → ${TARGET}"
+
+      - name: Set Argo CD image tag
+        if: secrets.KUBECONFIG_DATA != ''
+        env:
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          set -euo pipefail
+          echo "Setting ${ARGO_APP} image.tag=${TAG} in Argo CD..."
+          argocd app set "${ARGO_APP}" --core --helm-set "image.tag=${TAG}"
+
+      - name: Sync Argo CD Application
+        if: secrets.KUBECONFIG_DATA != ''
+        env:
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          set -euo pipefail
+          echo "Refreshing and syncing ${ARGO_APP} (--core)..."
+          argocd app get "${ARGO_APP}" --core --refresh >/dev/null
+          sleep 5
+          argocd app sync "${ARGO_APP}" --core --force --prune --revision HEAD
+          argocd app wait "${ARGO_APP}" --core --health --timeout 600
+          kubectl -n "todo-${TARGET}" rollout status deploy/todo --timeout=180s
+          RUNNING=$(kubectl -n "todo-${TARGET}" get deploy todo -o jsonpath='{.spec.template.spec.containers[0].image}')
+          echo "Deployed ${RUNNING} to ${TARGET}"
+
+      - name: Sync skipped (no cluster access)
+        if: secrets.KUBECONFIG_DATA == ''
+        run: |
+          echo "::warning::KUBECONFIG_DATA not set — cannot set/sync Argo CD app from CI."
+          echo "Run manually: argocd app set ${ARGO_APP} --helm-set image.tag=<sha-tag> --core"
+          echo "Then sync: argocd app sync ${ARGO_APP} --core"

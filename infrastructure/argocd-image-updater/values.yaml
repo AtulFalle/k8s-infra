@@ -1,0 +1,15 @@
+# Argo CD Image Updater — watches Docker Hub for new sha-* tags on todo-dev.
+config:
+  registries:
+    - name: Docker Hub
+      api_url: https://registry-1.docker.io
+      prefix: atulfalle1815
+      default: true
+
+resources:
+  requests:
+    cpu: 20m
+    memory: 64Mi
+  limits:
+    cpu: 200m
+    memory: 256Mi

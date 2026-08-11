@@ -10,7 +10,7 @@ metadata:
     - resources-finalizer.argocd.argoproj.io/cascade
 spec:
   project: workloads
-  # Prod: manual sync for POC (promote via Git tag change, then sync in UI/CLI)
+  # Prod: Argo CD owns runtime image.tag; sync is manual.
   source:
     repoURL: https://github.com/AtulFalle/k8s-infra.git
     targetRevision: HEAD

@@ -1,93 +1,122 @@
 # k8s-infra
 
-Kind-based platform POC: Authentik, Argo CD, Vault, Grafana, Headlamp, Argo Workflows, ingress, and a minimal **TODO** app to prove Dev → Stage → Prod.
+Kind-based POC: **TODO app Dev → Stage → Prod** with Vault, Grafana, CronJobs, Argo Workflows, and GitOps.
 
-## Agreed flow
-
-See **[docs/DEPLOYMENT_FLOW.md](docs/DEPLOYMENT_FLOW.md)** and **[docs/JOBS_ARCHITECTURE.md](docs/JOBS_ARCHITECTURE.md)**.
+## End-to-end flow
 
 ```text
-Compose (local) → PR (build + k8s check + review) → merge
-  → Argo DEV → promote same image tag → STAGE (QA) → PROD
+Local dev          CI (GitHub Actions)              Cluster (Argo CD)
+─────────          ───────────────────              ─────────────────
+
+docker compose  →  push master (workloads/todo)  →  build + push
+                   tag: sha-<git-sha>                 atulfalle1815/todo:sha-…
+                   (no commit to master)                    │
+                                                            ▼
+                                                   Image Updater → todo-dev
+                                                   (auto-sync ON)
+                                                            │
+                     workflow_dispatch: promote stage/prod  │
+                     (optional convenience trigger)          ▼
+                                                   Argo CD sets tag + syncs stage/prod
 ```
 
-## TODO POC (quick)
+| Environment | Deploy trigger | Sync mode | Image tag source |
+|-------------|----------------|-----------|------------------|
+| **Dev** | Every push to `master` (todo paths) | **Auto-sync** | `sha-*` via Image Updater (not in Git) |
+| **Stage** | Argo CD CLI/UI or optional promote workflow | **Manual sync** | Argo CD app Helm parameter (`image.tag`) |
+| **Prod** | Argo CD CLI/UI or optional promote workflow | **Manual sync** | Argo CD app Helm parameter (`image.tag`) |
+
+**Rule:** build once (`sha-<commit>`), promote the same tag to stage/prod.
+
+## 1. Local app development
 
 ```bash
-# Local
 cd workloads/todo && docker compose up --build
 # http://localhost:3000
-
-# Kind + Docker Hub + Vault (full E2E)
-TAG=0.1.2 bash scripts/deploy-todo-poc.sh
 ```
 
-UI proves the chain when open:
+## 2. Clean Kind cluster (first time)
 
-- **env** / **version** from Git values  
-- **banner** + **vault: connected** from Vault → External Secrets → pod  
-- **CronJobs** run `node server.js job cleanup|digest` on schedule  
+```bash
+bash scripts/fresh-cluster.sh
+```
 
-### GitHub Actions (Argo CD image flow)
+Installs platform only (no demo apps):
 
-1. Add repo secrets: `DOCKERHUB_USERNAME=atulfalle1815`, `DOCKERHUB_TOKEN=<hub access token>`
-2. Push to `master` → builds/pushes `atulfalle1815/todo:sha-…` and bumps `envs/todo/dev/values.yaml`
-3. Argo syncs Dev (after this repo is pushed)
-4. Actions → Run workflow → promote to `stage` or `prod`
+| Component | URL |
+|-----------|-----|
+| TODO dev/stage/prod | http://todo-dev.local … |
+| Vault | http://vault.local/ui |
+| Grafana | http://grafana.local |
+| Headlamp (CronJobs) | http://headlamp.local |
+| Argo Workflows | http://workflows.local |
+| Argo CD | http://argocd.local |
+| Authentik | http://authentik.local |
 
-See [docs/DEPLOYMENT_FLOW.md](docs/DEPLOYMENT_FLOW.md).
-
-Hosts to add:
+Hosts file:
 
 ```text
-127.0.0.1  todo-dev.local todo-stage.local todo-prod.local
-127.0.0.1  authentik.local argocd.local vault.local grafana.local
-127.0.0.1  headlamp.local workflows.local
-127.0.0.1  demo-dev.local demo-stage.local demo-prod.local
+127.0.0.1 todo-dev.local todo-stage.local todo-prod.local
+127.0.0.1 authentik.local argocd.local vault.local grafana.local
+127.0.0.1 headlamp.local workflows.local
 ```
 
-## Layout
+After `fresh-cluster.sh`, enable GitOps:
+
+```bash
+kubectl apply -f apps/workloads/
+```
+
+## 3. CI/CD (GitHub Actions)
+
+Workflow: [`.github/workflows/todo.yml`](.github/workflows/todo.yml)
+
+**On push to `master`** (when `workloads/todo/` or chart changes):
+
+1. Build & push `atulfalle1815/todo:sha-<7-char-sha>`
+2. **Does not** commit to `master`
+3. Argo CD Image Updater on `todo-dev` detects the new tag → auto-sync deploys dev
+
+**Manual promote** (Actions → Run workflow):
+
+1. Choose `stage` or `prod`
+2. Leave `image_tag` empty to use latest from dev cluster, or Docker Hub latest `sha-*`
+3. Workflow sets Argo CD app override `image.tag=<sha-...>`
+4. Workflow syncs **`todo-stage` / `todo-prod`** via `argocd app sync --core` (needs `KUBECONFIG_DATA`)
+
+| Secret | Purpose |
+|--------|---------|
+| `DOCKERHUB_USERNAME` | Push images + resolve latest tag |
+| `DOCKERHUB_TOKEN` | Push images + resolve latest tag |
+| `KUBECONFIG_DATA` | Read dev tag from cluster + **set/sync Argo CD app** for stage/prod |
+
+## 4. Verify POC
+
+1. TODO UI shows **Vault connected** + env banner per host
+2. Dev `/api/meta` shows `version: sha-…` matching latest CI build
+3. Headlamp → `todo-dev` → CronJobs `todo-cleanup`, `todo-digest`
+4. Workflows → `todo-digest-pipeline`
+5. Promote to stage → manual Argo sync → http://todo-stage.local same `sha-*` tag
+
+## 5. Repo layout
 
 | Path | Purpose |
 |------|---------|
-| `docs/DEPLOYMENT_FLOW.md` | Agreed DevOps flow |
-| `docs/JOBS_ARCHITECTURE.md` | Scheduled/batch jobs standard |
-| `docs/JOBS_POC_PLAN.md` | Jobs POC implementation plan |
-| `workloads/todo/` | TODO app source + Compose |
-| `charts/todo/` | Helm chart (CronJobs + app) |
-| `workflows/todo/` | Argo Workflows reference |
-| `envs/todo/{dev,stage,prod}/` | Per-env image tag + config |
+| `workloads/todo/` | App source |
+| `charts/todo/` | Helm chart + CronJobs |
+| `envs/todo/{dev,stage,prod}/` | Per-env config (`image.tag` is runtime-owned by Argo CD) |
 | `apps/workloads/todo-*.yaml` | Argo CD Applications |
-| `infrastructure/` | Platform (Authentik, Vault, Headlamp, Workflows, …) |
-| `scripts/` | Bootstrap / ingress / finalize / todo deploy |
+| `infrastructure/` | Vault, Authentik, Grafana, Headlamp, Workflows, Image Updater |
+| `scripts/fresh-cluster.sh` | One-shot clean Kind install |
 
-## Platform
+## Docs
 
-```bash
-kind create cluster --name kind --config kind-config.yaml
-bash scripts/bootstrap-platform.sh
-bash scripts/apply-platform-ingress.sh
-bash scripts/finalize-poc.sh   # OIDC + Grafana + Headlamp + Workflows
-```
+- [docs/DEPLOYMENT_FLOW.md](docs/DEPLOYMENT_FLOW.md)
+- [docs/JOBS_ARCHITECTURE.md](docs/JOBS_ARCHITECTURE.md)
 
-### POC login cheat sheet
+## Secrets (never commit)
 
-| App | URL | How |
-|-----|-----|-----|
-| Authentik | http://authentik.local | `akadmin` + `cat infrastructure/authentik/secrets/bootstrap-password` |
-| Argo CD | http://argocd.local | **LOG IN VIA authentik** (group `Argo CD Admins`) |
-| Vault | http://vault.local/ui | **OIDC** or token `root` (group `Vault Admins`) |
-| Grafana | http://grafana.local | `admin` / `admin` |
-| Headlamp | http://headlamp.local | **LOG IN VIA authentik** |
-| Argo Workflows | http://workflows.local | **LOG IN VIA authentik** |
-| TODO | http://todo-dev.local | Vault banner proves ESO |
+Generated locally under `infrastructure/authentik/secrets/` (gitignored).  
+Init with `bash scripts/init-authentik-secrets.sh`.
 
-Local Argo admin still works:
-
-```bash
-kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' | base64 -d; echo
-```
-
-## Later
-
-PR previews, Unleash, Postgres + Vault DB secrets, Authentik for kubectl.
+Authentik login: `akadmin` / `cat infrastructure/authentik/secrets/bootstrap-password`

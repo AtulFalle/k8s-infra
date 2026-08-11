@@ -21,9 +21,7 @@ spec:
   destination:
     server: https://kubernetes.default.svc
     namespace: todo-stage
+  # Stage: Argo CD owns runtime image.tag; sync is manual.
   syncPolicy:
-    automated:
-      prune: true
-      selfHeal: true
     syncOptions:
       - CreateNamespace=true

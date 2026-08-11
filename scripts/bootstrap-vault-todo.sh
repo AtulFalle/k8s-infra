@@ -1,6 +1,21 @@
 #!/usr/bin/env bash
-# Idempotent Vault seed + K8s auth roles for TODO (demo values only).
+# Idempotent Vault seed + K8s auth + roles for TODO.
 set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+echo "==> Wait for Vault"
+kubectl -n vault wait --for=condition=ready pod/vault-0 --timeout=120s
+
+echo "==> Enable Kubernetes auth (if needed)"
+kubectl exec -n vault vault-0 -- vault auth enable kubernetes 2>/dev/null || true
+kubectl exec -n vault vault-0 -- sh -c '
+vault write auth/kubernetes/config \
+  kubernetes_host="https://kubernetes.default.svc:443" \
+  token_reviewer_jwt="$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)" \
+  kubernetes_ca_cert=@/var/run/secrets/kubernetes.io/serviceaccount/ca.crt \
+  disable_iss_validation=true
+'
 
 for env in dev stage prod; do
   banner="Hello from Vault (${env}) — TODO secrets path OK"
@@ -11,7 +26,6 @@ for env in dev stage prod; do
   echo "secret/${env}/todo upserted"
 done
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 for env in dev stage prod; do
   kubectl exec -i -n vault vault-0 -- vault policy write "todo-${env}" - \
     <"${ROOT}/infrastructure/vault/policies/todo-${env}.hcl"

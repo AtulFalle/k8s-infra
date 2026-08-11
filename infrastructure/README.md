@@ -11,6 +11,7 @@ Versioned config for cluster platform services. Workloads live under `charts/` +
 | Authentik | `authentik/` | Helm + Ingress + local secret files |
 | Headlamp | `headlamp/` | Helm + Authentik OIDC |
 | Argo Workflows | `argo-workflows/` | Helm + Authentik OIDC |
+| Argo CD Image Updater | `argocd-image-updater/` | Dev sha auto-deploy |
 | Monitoring | `monitoring/` | kube-prometheus-stack + job alerts |
 
 Apply Ingresses:

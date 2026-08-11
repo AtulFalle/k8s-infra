@@ -2,7 +2,8 @@ replicaCount: 1
 
 image:
   repository: atulfalle1815/todo
-  tag: "sha-9cb3654"
+  # CI pushes sha-* tags; Argo CD Image Updater sets the live tag on todo-dev.
+  tag: "sha-bootstrap"
   pullPolicy: Always
 
 imagePullSecrets:
@@ -13,7 +14,6 @@ serviceAccount:
 
 config:
   APP_ENV: dev
-  APP_VERSION: "sha-9cb3654"
 
 secrets:
   enabled: true

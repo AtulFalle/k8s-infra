@@ -6,6 +6,14 @@ metadata:
   labels:
     app.kubernetes.io/name: todo
     environment: dev
+  annotations:
+    # Image Updater sets image.tag from Docker Hub sha-* builds (no Git commit to master).
+    argocd-image-updater.argoproj.io/image-list: todo=atulfalle1815/todo
+    argocd-image-updater.argoproj.io/todo.update-strategy: newest-build
+    argocd-image-updater.argoproj.io/todo.allow-tags: regexp:^sha-[a-f0-9]{7}$
+    argocd-image-updater.argoproj.io/todo.helm.image-name: image.repository
+    argocd-image-updater.argoproj.io/todo.helm.image-tag: image.tag
+    argocd-image-updater.argoproj.io/write-back-method: argocd
   finalizers:
     - resources-finalizer.argocd.argoproj.io/cascade
 spec:

@@ -5,14 +5,36 @@ infrastructure/**/secrets/**
 # Ad-hoc secret value files
 *.secret.yaml
 *.secrets.yaml
+.env
+.env.*
+!.env.example
+
+# TLS / keys
+*.pem
+*.key
+*.p12
+*.pfx
 
 # App local artifacts
 workloads/**/node_modules/
 workloads/**/data/
+workloads/**/dist/
 *.db
+
+# Helm packaging
+charts/**/charts/
+*.tgz
 
 # OS / editor
 .DS_Store
 Thumbs.db
 *.swp
 *~
+.cursor/
+.vscode/
+.idea/
+
+# Debug / temp
+*.log
+tmp/
+.temp/
