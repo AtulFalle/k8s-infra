@@ -1,6 +1,3 @@
-# Authentik Helm values for local Kind POC.
-# Secrets (secret_key, postgresql passwords) are injected at install time
-# from infrastructure/authentik/secrets/ — never commit those files.
 authentik:
   error_reporting:
     enabled: false
@@ -10,14 +7,49 @@ postgresql:
   auth:
     username: authentik
     database: authentik
-    # Avoid POSTGRES_PASSWORD + POSTGRES_PASSWORD_FILE clash (goauthentik/helm#449)
     usePasswordFiles: false
+
+# OIDC app blueprints (Argo CD + Vault)
+blueprints:
+  configMaps:
+    - authentik-blueprints
 
 server:
   replicas: 1
-  # Prefer raw Ingress in this directory so all platform UIs share one pattern.
   ingress:
     enabled: false
+  env:
+    - name: AUTHENTIK_BOOTSTRAP_EMAIL
+      valueFrom:
+        secretKeyRef:
+          name: authentik-bootstrap
+          key: email
+    - name: AUTHENTIK_BOOTSTRAP_PASSWORD
+      valueFrom:
+        secretKeyRef:
+          name: authentik-bootstrap
+          key: password
+    # Blueprint !Env substitutions
+    - name: ARGOCD_OIDC_CLIENT_ID
+      valueFrom:
+        secretKeyRef:
+          name: authentik-oidc-clients
+          key: argocd-client-id
+    - name: ARGOCD_OIDC_CLIENT_SECRET
+      valueFrom:
+        secretKeyRef:
+          name: authentik-oidc-clients
+          key: argocd-client-secret
+    - name: VAULT_OIDC_CLIENT_ID
+      valueFrom:
+        secretKeyRef:
+          name: authentik-oidc-clients
+          key: vault-client-id
+    - name: VAULT_OIDC_CLIENT_SECRET
+      valueFrom:
+        secretKeyRef:
+          name: authentik-oidc-clients
+          key: vault-client-secret
   resources:
     requests:
       cpu: 100m
@@ -28,6 +60,37 @@ server:
 
 worker:
   replicas: 1
+  env:
+    - name: AUTHENTIK_BOOTSTRAP_EMAIL
+      valueFrom:
+        secretKeyRef:
+          name: authentik-bootstrap
+          key: email
+    - name: AUTHENTIK_BOOTSTRAP_PASSWORD
+      valueFrom:
+        secretKeyRef:
+          name: authentik-bootstrap
+          key: password
+    - name: ARGOCD_OIDC_CLIENT_ID
+      valueFrom:
+        secretKeyRef:
+          name: authentik-oidc-clients
+          key: argocd-client-id
+    - name: ARGOCD_OIDC_CLIENT_SECRET
+      valueFrom:
+        secretKeyRef:
+          name: authentik-oidc-clients
+          key: argocd-client-secret
+    - name: VAULT_OIDC_CLIENT_ID
+      valueFrom:
+        secretKeyRef:
+          name: authentik-oidc-clients
+          key: vault-client-id
+    - name: VAULT_OIDC_CLIENT_SECRET
+      valueFrom:
+        secretKeyRef:
+          name: authentik-oidc-clients
+          key: vault-client-secret
   resources:
     requests:
       cpu: 100m

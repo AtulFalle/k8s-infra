@@ -1,0 +1,30 @@
+{{- if .Values.cronjob.enabled }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "todo.fullname" . }}-cleanup
+  labels:
+    {{- include "todo.labels" . | nindent 4 }}
+spec:
+  schedule: {{ .Values.cronjob.schedule | quote }}
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          labels:
+            {{- include "todo.selectorLabels" . | nindent 12 }}
+            app.kubernetes.io/component: cron
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: cleanup
+              image: curlimages/curl:8.12.1
+              imagePullPolicy: IfNotPresent
+              args:
+                - -sS
+                - -X
+                - POST
+                - http://{{ include "todo.fullname" . }}/api/maintenance/cleanup-done
+{{- end }}

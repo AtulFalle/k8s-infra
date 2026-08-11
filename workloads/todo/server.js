@@ -96,6 +96,12 @@ app.delete("/api/todos/:id", (req, res) => {
   res.status(204).end();
 });
 
+// Used by CronJob to demonstrate scheduled work in-cluster
+app.post("/api/maintenance/cleanup-done", (_req, res) => {
+  const info = db.prepare("DELETE FROM todos WHERE done = 1").run();
+  res.json({ deleted: info.changes, env: APP_ENV, at: new Date().toISOString() });
+});
+
 app.listen(PORT, () => {
   console.log(
     `todo listening on :${PORT} env=${APP_ENV} vault=${Boolean(APP_BANNER && DEMO_API_KEY)} db=${DB_PATH}`
