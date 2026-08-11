@@ -33,6 +33,9 @@ bash "${ROOT}/scripts/finalize-poc.sh"
 echo "==> Deploy TODO dev/stage/prod"
 KIND_LOAD="${KIND_LOAD}" TAG="${TAG}" bash "${ROOT}/scripts/deploy-todo-poc.sh"
 
+echo "==> Register Argo CD workload applications"
+kubectl apply -f "${ROOT}/apps/workloads/"
+
 echo
 echo "======== CLEAN CLUSTER READY ========"
 echo "TODO:       http://todo-dev.local  http://todo-stage.local  http://todo-prod.local"

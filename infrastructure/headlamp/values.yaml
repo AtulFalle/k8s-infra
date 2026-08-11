@@ -3,6 +3,9 @@ replicaCount: 1
 
 config:
   inCluster: true
+  # POC mode: authenticate user via OIDC, then authorize Kubernetes calls
+  # using the in-cluster Headlamp service account token.
+  unsafeUseServiceAccountToken: true
   oidc:
     clientID: ""
     clientSecret: ""

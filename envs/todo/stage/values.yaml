@@ -2,11 +2,10 @@ replicaCount: 1
 
 image:
   repository: atulfalle1815/todo
-  tag: "sha-bootstrap"
+  tag: "0.1.2"
   pullPolicy: Always
 
-imagePullSecrets:
-  - name: dockerhub
+imagePullSecrets: []
 
 serviceAccount:
   name: vault-todo

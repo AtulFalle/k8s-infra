@@ -35,6 +35,7 @@ helm upgrade --install headlamp headlamp/headlamp \
   -f "${ROOT}/infrastructure/headlamp/values.yaml" \
   --set-string config.oidc.clientID="${HEADLAMP_CID}" \
   --set-string config.oidc.clientSecret="${HEADLAMP_CSEC}"
+kubectl apply -f "${ROOT}/infrastructure/headlamp/serviceaccount-token.yaml"
 kubectl -n headlamp rollout status deploy/headlamp --timeout=180s || \
   kubectl -n headlamp rollout status deploy/headlamp-headlamp --timeout=180s || true
 
@@ -51,6 +52,7 @@ helm upgrade --install argo-workflows argo/argo-workflows \
   --namespace argo \
   --version 1.0.24 \
   -f "${ROOT}/infrastructure/argo-workflows/values.yaml"
+kubectl apply -f "${ROOT}/infrastructure/argo-workflows/sso-rbac.yaml"
 kubectl -n argo rollout status deploy/argo-workflows-server --timeout=300s || true
 kubectl -n argo rollout status deploy/argo-workflows-workflow-controller --timeout=300s || true
 

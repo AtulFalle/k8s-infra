@@ -27,6 +27,13 @@ server:
   authModes:
     - sso
   secure: false
+  serviceAccount:
+    create: true
+    name: argo-workflows-server
+    annotations:
+      # Map Authentik groups to a Kubernetes service account for Argo Workflows SSO RBAC.
+      workflows.argoproj.io/rbac-rule: "'Platform Admins' in groups || 'Argo CD Admins' in groups"
+      workflows.argoproj.io/rbac-rule-precedence: "1"
   ingress:
     enabled: true
     ingressClassName: nginx
